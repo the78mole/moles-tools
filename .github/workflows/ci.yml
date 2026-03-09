@@ -10,6 +10,7 @@ on:
 permissions:
   contents: write
   id-token: write
+  pull-requests: write
 
 jobs:
   # ─────────────────────────────────────────────────────────────────────────
@@ -89,6 +90,24 @@ jobs:
         with:
           name: coverage-report
           path: coverage.xml
+
+      - name: Generate text coverage report for PR comment
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' && github.event_name == 'pull_request'
+        run: uv run coverage report -m > pytest-coverage.txt
+
+      - name: Post coverage comment on PR
+        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' && github.event_name == 'pull_request'
+        uses: MishaKav/pytest-coverage-comment@v1.0.52
+        with:
+          pytest-coverage-path: ./pytest-coverage.txt
+          title: "Coverage Report"
+          badge-title: Coverage
+          hide-badge: false
+          hide-report: false
+          create-new-comment: false
+          hide-comment: false
+          report-only-changed-files: false
+          unique-id-for-comment: python-coverage
 
   # ─────────────────────────────────────────────────────────────────────────
   # Build distribution packages (wheel + sdist)
