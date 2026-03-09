@@ -7,14 +7,18 @@
       "configureZshAsDefaultShell": true,
       "installOhMyZsh": true,
       "upgradePackages": true,
-      "username": "vscode"
+      "username": "vscode",
+      "userUid": "automatic",
+      "userGid": "automatic"
     },
     "ghcr.io/devcontainers/features/python:1": {
       "version": "3.12",
       "toolsToInstall": "flake8,autopep8,black,yapf,mypy,pydocstyle,pycodestyle,bandit,pipenv,virtualenv,pytest,pylint,ruff,pre-commit"
     },
     "ghcr.io/the78mole/devcontainer-features/uv:1": {},
-    "ghcr.io/devcontainers/features/github-cli:1": {}
+    "ghcr.io/devcontainers/features/github-cli:1": {
+      "extensions": "the78mole/gh-moles"
+    }
   },
   "customizations": {
     "vscode": {
