@@ -159,6 +159,17 @@ non-comment line has no `=` separator.
 
 ---
 
+### `find_example_env(cwd)`
+
+| Parameter | Type | Description |
+|---|---|---|
+| `cwd` | `Path` | Directory to search in. |
+
+**Returns** `Path | None` — path to `.env.example` or `env.example` if found, otherwise `None`.
+Prefers `.env.example` over `env.example` when both exist.
+
+---
+
 ### `update_env_file(source_path, target_path, *, create_target=True)`
 
 | Parameter | Type | Default | Description |

@@ -20,8 +20,9 @@ features:
   - icon: 🔧
     title: ENV File Updater
     details: >
-      Update all ENV variables in a target file from a source file.
-      New variables are appended automatically; existing ones are updated in place.
+      Update ENV variables in a target file from an update file.
+      Auto-detects .env and .env.example files; new variables are appended,
+      existing ones are updated in place.
     link: /tools/env-updater
     linkText: Learn more
   - icon: 📦
