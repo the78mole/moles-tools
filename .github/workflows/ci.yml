@@ -1,0 +1,282 @@
+name: CI / CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: ["**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write
+  pull-requests: write
+
+jobs:
+  # ─────────────────────────────────────────────────────────────────────────
+  # Determine semantic version from commit messages
+  # ─────────────────────────────────────────────────────────────────────────
+  version:
+    name: Determine version
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.semver.outputs.version }}
+      version_tag: ${{ steps.semver.outputs.version_tag }}
+      is_tagged: ${{ steps.semver.outputs.is_tagged }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine semantic version
+        id: semver
+        uses: paulhatch/semantic-version@v5.4.0
+        with:
+          tag_prefix: "v"
+          major_pattern: "#major"
+          minor_pattern: "#minor"
+          version_format: "${major}.${minor}.${patch}"
+          bump_each_commit: false
+          search_commit_body: true
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Build & test on multiple OS / Python version combinations
+  # ─────────────────────────────────────────────────────────────────────────
+  build:
+    name: Build & test (${{ matrix.os }} / py${{ matrix.python-version }})
+    needs: version
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental == true }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ── Ubuntu 22.04 LTS (Jammy) ─────────────────────────────────────
+          - os: ubuntu-22.04
+            python-version: "3.11"
+          - os: ubuntu-22.04
+            python-version: "3.12"
+          # ── Ubuntu 24.04 LTS (Noble / ubuntu-latest) ─────────────────────
+          - os: ubuntu-24.04
+            python-version: "3.12"
+          - os: ubuntu-24.04
+            python-version: "3.13"
+          # ── macOS ─────────────────────────────────────────────────────────
+          - os: macos-latest
+            python-version: "3.12"
+          - os: macos-latest
+            python-version: "3.13"
+          # ── Windows ───────────────────────────────────────────────────────
+          - os: windows-latest
+            python-version: "3.12"
+          - os: windows-latest
+            python-version: "3.13"
+          # ── Python 3.14 pre-release (experimental / allow failure) ────────
+          - os: ubuntu-24.04
+            python-version: "3.14"
+            experimental: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install project and dependencies
+        run: uv sync --all-extras
+
+      - name: Run linting (ruff)
+        run: uv run ruff check src/ tests/
+
+      - name: Run formatting check (black)
+        run: uv run black --check src/ tests/
+
+      - name: Run type checking (mypy)
+        run: uv run mypy src/
+
+      - name: Run tests
+        shell: bash
+        run: uv run pytest tests/ -v --junitxml=pytest.xml --cov=moles_tools --cov-report=xml --cov-report=term-missing:skip-covered | tee pytest-coverage.txt
+
+      - name: Upload coverage report
+        if: matrix.os == 'ubuntu-24.04' && matrix.python-version == '3.13'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+
+      - name: Post coverage comment on PR
+        if: matrix.os == 'ubuntu-24.04' && matrix.python-version == '3.13' && github.event_name == 'pull_request'
+        uses: MishaKav/pytest-coverage-comment@v1.6.0
+        with:
+          pytest-coverage-path: ./pytest-coverage.txt
+          junitxml-path: ./pytest.xml
+          title: "Coverage Report"
+          badge-title: Coverage
+          hide-badge: false
+          hide-report: false
+          create-new-comment: false
+          hide-comment: false
+          report-only-changed-files: false
+          unique-id-for-comment: python-coverage
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Build & test inside Linux container images (Debian, Alpine)
+  # ─────────────────────────────────────────────────────────────────────────
+  build-containers:
+    name: Build & test (${{ matrix.container }} / py${{ matrix.python-version }})
+    needs: version
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.container }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ── Ubuntu 20.04 LTS (Focal) – oldest supported LTS ──────────────
+          - container: "ubuntu:20.04"
+            python-version: "3.11"
+          # ── Debian 11 (Bullseye) ──────────────────────────────────────────
+          - container: "debian:11"
+            python-version: "3.11"
+          # ── Debian 12 (Bookworm) – ships Python 3.11 ─────────────────────
+          - container: "debian:12"
+            python-version: "3.11"
+          - container: "debian:12"
+            python-version: "3.12"
+          # ── Debian 13 (Trixie) – ships Python 3.12 ───────────────────────
+          - container: "debian:13"
+            python-version: "3.12"
+          - container: "debian:13"
+            python-version: "3.13"
+          # ── Alpine 3.20 – musl libc ───────────────────────────────────────
+          - container: "alpine:3.20"
+            python-version: "3.12"
+          # ── Alpine 3.21 – musl libc ───────────────────────────────────────
+          - container: "alpine:3.21"
+            python-version: "3.13"
+
+    steps:
+      - name: Install system dependencies (Debian/Ubuntu)
+        if: startsWith(matrix.container, 'debian:')
+        run: apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git
+
+      - name: Install system dependencies (Alpine)
+        if: startsWith(matrix.container, 'alpine:')
+        shell: sh
+        run: apk add --no-cache bash curl git
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install project and dependencies
+        run: uv sync --all-extras
+
+      - name: Run linting (ruff)
+        run: uv run ruff check src/ tests/
+
+      - name: Run formatting check (black)
+        run: uv run black --check src/ tests/
+
+      - name: Run type checking (mypy)
+        run: uv run mypy src/
+
+      - name: Run tests
+        shell: bash
+        run: uv run pytest tests/ -v --cov=moles_tools --cov-report=xml --cov-report=term-missing:skip-covered
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Build distribution packages (wheel + sdist)
+  # ─────────────────────────────────────────────────────────────────────────
+  package:
+    name: Build distribution packages
+    needs: [version, build, build-containers]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Stamp version
+        run: |
+          sed -i 's/^version = ".*"/version = "${{ needs.version.outputs.version }}"/' pyproject.toml
+
+      - name: Build wheel and sdist
+        run: uv build
+
+      - name: Upload dist artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Publish to PyPI — only when pushing to main
+  # ─────────────────────────────────────────────────────────────────────────
+  publish:
+    name: Publish to PyPI
+    needs: [version, package]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: pypi
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      - name: Publish to PyPI (trusted publishing / OIDC)
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  # ─────────────────────────────────────────────────────────────────────────
+  # Create a Git tag for the release version when pushing to main
+  # ─────────────────────────────────────────────────────────────────────────
+  tag-release:
+    name: Tag release
+    needs: [version, publish]
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Create and push version tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          TAG="${{ needs.version.outputs.version_tag }}"
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG already exists — skipping."
+          else
+            git tag "$TAG"
+            git push origin "$TAG"
+          fi

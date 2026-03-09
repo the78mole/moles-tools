@@ -1,0 +1,99 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "moles-tools"
+version = "0.1.0"
+description = "A collection of Python tools from the underground"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "the78mole", email = "the78mole@users.noreply.github.com" }]
+keywords = ["tools", "env", "utilities", "cli"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Utilities",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "black>=24.0",
+    "ruff>=0.4.0",
+    "mypy>=1.10",
+    "pre-commit>=3.7",
+]
+
+[project.urls]
+Homepage = "https://github.com/the78mole/moles-tools"
+Documentation = "https://the78mole.github.io/moles-tools"
+Repository = "https://github.com/the78mole/moles-tools"
+Issues = "https://github.com/the78mole/moles-tools/issues"
+Changelog = "https://github.com/the78mole/moles-tools/releases"
+
+[project.scripts]
+env-updater = "moles_tools.env_updater:main"
+moles-tools = "moles_tools.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/moles_tools"]
+
+[tool.hatch.build.targets.sdist]
+include = ["/src", "/tests", "/README.md", "/LICENSE"]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "black>=24.0",
+    "ruff>=0.4.0",
+    "mypy>=1.10",
+    "pre-commit>=3.7",
+]
+
+[tool.black]
+line-length = 88
+target-version = ["py311", "py312"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "B", "UP"]
+ignore = ["E501"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["moles_tools"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --cov=moles_tools --cov-report=term-missing --cov-report=xml"
+
+[tool.coverage.run]
+source = ["src/moles_tools"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+fail_under = 80
+
+[tool.bandit]
+exclude_dirs = ["tests"]
+skips = []
