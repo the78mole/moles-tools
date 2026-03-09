@@ -47,15 +47,38 @@ jobs:
     name: Build & test (${{ matrix.os }} / py${{ matrix.python-version }})
     needs: version
     runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental == true }}
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - ubuntu-22.04
-          - macos-latest
-          - windows-latest
-        python-version: ["3.11", "3.12"]
+        include:
+          # ── Ubuntu 20.04 LTS (Focal) – oldest supported LTS ──────────────
+          - os: ubuntu-20.04
+            python-version: "3.11"
+          # ── Ubuntu 22.04 LTS (Jammy) ─────────────────────────────────────
+          - os: ubuntu-22.04
+            python-version: "3.11"
+          - os: ubuntu-22.04
+            python-version: "3.12"
+          # ── Ubuntu 24.04 LTS (Noble / ubuntu-latest) ─────────────────────
+          - os: ubuntu-24.04
+            python-version: "3.12"
+          - os: ubuntu-24.04
+            python-version: "3.13"
+          # ── macOS ─────────────────────────────────────────────────────────
+          - os: macos-latest
+            python-version: "3.12"
+          - os: macos-latest
+            python-version: "3.13"
+          # ── Windows ───────────────────────────────────────────────────────
+          - os: windows-latest
+            python-version: "3.12"
+          - os: windows-latest
+            python-version: "3.13"
+          # ── Python 3.14 pre-release (experimental / allow failure) ────────
+          - os: ubuntu-24.04
+            python-version: "3.14"
+            experimental: true
 
     steps:
       - name: Checkout
@@ -86,14 +109,14 @@ jobs:
         run: uv run pytest tests/ -v --junitxml=pytest.xml --cov=moles_tools --cov-report=xml --cov-report=term-missing:skip-covered | tee pytest-coverage.txt
 
       - name: Upload coverage report
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
+        if: matrix.os == 'ubuntu-24.04' && matrix.python-version == '3.13'
         uses: actions/upload-artifact@v4
         with:
           name: coverage-report
           path: coverage.xml
 
       - name: Post coverage comment on PR
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' && github.event_name == 'pull_request'
+        if: matrix.os == 'ubuntu-24.04' && matrix.python-version == '3.13' && github.event_name == 'pull_request'
         uses: MishaKav/pytest-coverage-comment@v1.6.0
         with:
           pytest-coverage-path: ./pytest-coverage.txt
@@ -108,11 +131,81 @@ jobs:
           unique-id-for-comment: python-coverage
 
   # ─────────────────────────────────────────────────────────────────────────
+  # Build & test inside Linux container images (Debian, Alpine)
+  # ─────────────────────────────────────────────────────────────────────────
+  build-containers:
+    name: Build & test (${{ matrix.container }} / py${{ matrix.python-version }})
+    needs: version
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ matrix.container }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # ── Debian 11 (Bullseye) ──────────────────────────────────────────
+          - container: "debian:11"
+            python-version: "3.11"
+          # ── Debian 12 (Bookworm) – ships Python 3.11 ─────────────────────
+          - container: "debian:12"
+            python-version: "3.11"
+          - container: "debian:12"
+            python-version: "3.12"
+          # ── Debian 13 (Trixie) – ships Python 3.12 ───────────────────────
+          - container: "debian:13"
+            python-version: "3.12"
+          - container: "debian:13"
+            python-version: "3.13"
+          # ── Alpine 3.20 – musl libc ───────────────────────────────────────
+          - container: "alpine:3.20"
+            python-version: "3.12"
+          # ── Alpine 3.21 – musl libc ───────────────────────────────────────
+          - container: "alpine:3.21"
+            python-version: "3.13"
+
+    steps:
+      - name: Install system dependencies (Debian)
+        if: startsWith(matrix.container, 'debian:')
+        run: apt-get update && apt-get install -y --no-install-recommends curl git
+
+      - name: Install system dependencies (Alpine)
+        if: startsWith(matrix.container, 'alpine:')
+        shell: sh
+        run: apk add --no-cache bash curl git
+
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install project and dependencies
+        run: uv sync --all-extras
+
+      - name: Run linting (ruff)
+        run: uv run ruff check src/ tests/
+
+      - name: Run formatting check (black)
+        run: uv run black --check src/ tests/
+
+      - name: Run type checking (mypy)
+        run: uv run mypy src/
+
+      - name: Run tests
+        shell: bash
+        run: uv run pytest tests/ -v --cov=moles_tools --cov-report=xml --cov-report=term-missing:skip-covered
+
+  # ─────────────────────────────────────────────────────────────────────────
   # Build distribution packages (wheel + sdist)
   # ─────────────────────────────────────────────────────────────────────────
   package:
     name: Build distribution packages
-    needs: [version, build]
+    needs: [version, build, build-containers]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
