@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from moles_tools.env_updater import (
+    find_example_env,
     main,
     parse_env_file,
     update_env_file,
@@ -268,3 +269,155 @@ class TestMain:
         assert rc == 0
         assert target.exists()
         assert "KEY=val" in target.read_text()
+
+
+# ---------------------------------------------------------------------------
+# find_example_env
+# ---------------------------------------------------------------------------
+
+
+class TestFindExampleEnv:
+    def test_finds_dot_env_example(self, tmp_path: Path) -> None:
+        (tmp_path / ".env.example").write_text("A=1\n", encoding="utf-8")
+        assert find_example_env(tmp_path) == tmp_path / ".env.example"
+
+    def test_finds_env_example(self, tmp_path: Path) -> None:
+        (tmp_path / "env.example").write_text("A=1\n", encoding="utf-8")
+        assert find_example_env(tmp_path) == tmp_path / "env.example"
+
+    def test_prefers_dot_env_example(self, tmp_path: Path) -> None:
+        (tmp_path / ".env.example").write_text("A=1\n", encoding="utf-8")
+        (tmp_path / "env.example").write_text("A=2\n", encoding="utf-8")
+        assert find_example_env(tmp_path) == tmp_path / ".env.example"
+
+    def test_returns_none_when_not_found(self, tmp_path: Path) -> None:
+        assert find_example_env(tmp_path) is None
+
+
+# ---------------------------------------------------------------------------
+# Auto-detect: main() without explicit TARGET
+# ---------------------------------------------------------------------------
+
+
+class TestAutoDetect:
+    """Tests for the auto-detection logic when TARGET is omitted."""
+
+    def test_case1_updates_existing_dot_env(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Case 1: .env exists → update it with UPDATE file."""
+        monkeypatch.chdir(tmp_path)
+        update = tmp_path / "update.env"
+        dot_env = tmp_path / ".env"
+        write_env(update, "FOO=new\nBAR=added\n")
+        write_env(dot_env, "FOO=old\n")
+
+        rc = main([str(update)])
+
+        assert rc == 0
+        content = dot_env.read_text()
+        assert "FOO=new" in content
+        assert "BAR=added" in content
+
+    def test_case2_creates_dot_env_from_example(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Case 2: no .env, .env.example exists → create .env from it, then apply UPDATE."""
+        monkeypatch.chdir(tmp_path)
+        update = tmp_path / "update.env"
+        example = tmp_path / ".env.example"
+        write_env(update, "SECRET=override\n")
+        write_env(example, "DB=postgres\nSECRET=changeme\n")
+
+        rc = main([str(update)])
+
+        assert rc == 0
+        dot_env = tmp_path / ".env"
+        assert dot_env.exists()
+        content = dot_env.read_text()
+        assert "DB=postgres" in content
+        assert "SECRET=override" in content
+
+    def test_case2_uses_env_example_fallback(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Case 2: env.example (no leading dot) is used as fallback."""
+        monkeypatch.chdir(tmp_path)
+        update = tmp_path / "update.env"
+        (tmp_path / "env.example").write_text("X=1\n", encoding="utf-8")
+        write_env(update, "X=2\n")
+
+        rc = main([str(update)])
+
+        assert rc == 0
+        content = (tmp_path / ".env").read_text()
+        assert "X=2" in content
+
+    def test_case2_no_example_returns_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Case 2 failure: no .env and no example → exit 1."""
+        monkeypatch.chdir(tmp_path)
+        update = tmp_path / "update.env"
+        write_env(update, "A=1\n")
+
+        rc = main([str(update)])
+
+        assert rc == 1
+
+    def test_case3_copies_example_to_dot_env(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Case 3: no UPDATE, no .env → copy .env.example to .env."""
+        monkeypatch.chdir(tmp_path)
+        example = tmp_path / ".env.example"
+        write_env(example, "HOST=localhost\nPORT=5432\n")
+
+        rc = main([])
+
+        assert rc == 0
+        dot_env = tmp_path / ".env"
+        assert dot_env.exists()
+        assert dot_env.read_text() == example.read_text()
+
+    def test_case3_dot_env_already_exists_noop(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Case 3: .env already exists, nothing to do."""
+        monkeypatch.chdir(tmp_path)
+        dot_env = tmp_path / ".env"
+        write_env(dot_env, "A=1\n")
+
+        rc = main([])
+
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert "nothing to do" in captured.out
+
+    def test_case3_no_example_no_dot_env_returns_error(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Case 3 failure: no .env and no example → exit 1."""
+        monkeypatch.chdir(tmp_path)
+
+        rc = main([])
+
+        assert rc == 1
+
+    def test_case3_quiet_suppresses_output(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Case 3 with --quiet suppresses output."""
+        monkeypatch.chdir(tmp_path)
+        write_env(tmp_path / ".env.example", "A=1\n")
+
+        rc = main(["--quiet"])
+
+        assert rc == 0
+        assert capsys.readouterr().out == ""

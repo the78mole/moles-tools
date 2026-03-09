@@ -1,12 +1,16 @@
 # ENV File Updater
 
-The **ENV File Updater** (`env-updater`) reads all `KEY=VALUE` pairs from a
-*source* ENV file and applies them to a *target* ENV file:
+The **ENV File Updater** (`env-updater`) reads all `KEY=VALUE` pairs from an
+*update* ENV file and applies them to a *target* ENV file:
 
 - **Existing keys** in the target file are updated **in place** — comments and
   blank lines around them are preserved.
-- **New keys** that only exist in the source are **appended** at the end of the
-  target file.
+- **New keys** that only exist in the update file are **appended** at the end of
+  the target file.
+
+Both arguments are optional. When omitted, the tool auto-detects what to do
+based on the files present in the current working directory (see
+[Auto-detect mode](#auto-detect-mode) below).
 
 ## Installation
 
@@ -19,19 +23,34 @@ The `env-updater` command is available immediately after installation.
 ## Usage
 
 ```
-env-updater SOURCE TARGET [--no-create] [--quiet]
+env-updater [UPDATE] [TARGET] [--no-create] [--quiet]
 ```
 
 | Argument / Flag | Description |
 |---|---|
-| `SOURCE` | Source ENV file whose values take precedence. |
-| `TARGET` | Target ENV file to update. Created if it doesn't exist (unless `--no-create` is set). |
+| `UPDATE` | ENV file whose values take precedence (optional). |
+| `TARGET` | Target ENV file to update in-place. Auto-detected when omitted. Created if it doesn't exist (unless `--no-create` is set). |
 | `--no-create` | Fail with an error if `TARGET` does not exist instead of creating it. |
 | `--quiet`, `-q` | Suppress the summary output. |
 
+## Auto-detect mode
+
+When `TARGET` (and optionally `UPDATE`) is omitted, `env-updater` inspects the
+current working directory and chooses an action automatically:
+
+| Condition | Action |
+|---|---|
+| `UPDATE` given, `.env` **exists** | Update `.env` in-place with `UPDATE`. |
+| `UPDATE` given, `.env` **missing**, `.env.example` / `env.example` found | Copy the example file to `.env`, then apply `UPDATE`. |
+| No `UPDATE`, `.env` **missing**, example file found | Copy the example file to `.env` (no update applied). |
+| No `UPDATE`, `.env` **already exists** | Nothing to do — exits successfully. |
+| None of the above | Exits with an error. |
+
+The tool prefers `.env.example` over `env.example` when both exist.
+
 ## Examples
 
-### Basic update
+### Basic update with explicit files
 
 ```bash
 # .env.production contains the authoritative values
@@ -40,6 +59,29 @@ env-updater .env.production .env
 
 After the command, `.env` contains all variables from `.env.production`. Any
 variable already present in `.env` is updated; new variables are appended.
+
+### Auto-update: apply an update file, target auto-detected
+
+```bash
+# .env already exists in the current directory
+env-updater env.update
+```
+
+### Auto-bootstrap from example, then apply overrides
+
+```bash
+# No .env yet, but .env.example is present
+env-updater env.update
+# → copies .env.example to .env, then applies env.update
+```
+
+### Auto-bootstrap from example only (no overrides)
+
+```bash
+# No .env yet, but .env.example is present
+env-updater
+# → copies .env.example to .env
+```
 
 ### Merge a partial override file
 
