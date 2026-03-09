@@ -91,15 +91,11 @@ jobs:
           name: coverage-report
           path: coverage.xml
 
-      - name: Generate text coverage report for PR comment
-        if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' && github.event_name == 'pull_request'
-        run: uv run coverage report -m > pytest-coverage.txt
-
       - name: Post coverage comment on PR
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' && github.event_name == 'pull_request'
         uses: MishaKav/pytest-coverage-comment@v1.6.0
         with:
-          pytest-coverage-path: ./pytest-coverage.txt
+          pytest-xml-coverage-path: ./coverage.xml
           title: "Coverage Report"
           badge-title: Coverage
           hide-badge: false
