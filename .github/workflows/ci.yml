@@ -97,7 +97,7 @@ jobs:
 
       - name: Post coverage comment on PR
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' && github.event_name == 'pull_request'
-        uses: MishaKav/pytest-coverage-comment@v1.0.52
+        uses: MishaKav/pytest-coverage-comment@v1.6.0
         with:
           pytest-coverage-path: ./pytest-coverage.txt
           title: "Coverage Report"
