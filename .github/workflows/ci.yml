@@ -52,9 +52,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # ── Ubuntu 20.04 LTS (Focal) – oldest supported LTS ──────────────
-          - os: ubuntu-20.04
-            python-version: "3.11"
           # ── Ubuntu 22.04 LTS (Jammy) ─────────────────────────────────────
           - os: ubuntu-22.04
             python-version: "3.11"
@@ -143,6 +140,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          # ── Ubuntu 20.04 LTS (Focal) – oldest supported LTS ──────────────
+          - container: "ubuntu:20.04"
+            python-version: "3.11"
           # ── Debian 11 (Bullseye) ──────────────────────────────────────────
           - container: "debian:11"
             python-version: "3.11"
@@ -164,7 +164,7 @@ jobs:
             python-version: "3.13"
 
     steps:
-      - name: Install system dependencies (Debian)
+      - name: Install system dependencies (Debian/Ubuntu)
         if: startsWith(matrix.container, 'debian:')
         run: apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git
 
