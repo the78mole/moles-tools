@@ -166,7 +166,7 @@ jobs:
     steps:
       - name: Install system dependencies (Debian)
         if: startsWith(matrix.container, 'debian:')
-        run: apt-get update && apt-get install -y --no-install-recommends curl git
+        run: apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git
 
       - name: Install system dependencies (Alpine)
         if: startsWith(matrix.container, 'alpine:')
