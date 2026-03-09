@@ -13,11 +13,11 @@
 pip install moles-tools
 ```
 
-```bash [uv]
-uv add moles-tools
+```bash [uv (recommended for CLI tools)]
+uv tool install moles-tools
 ```
 
-```bash [pipx (recommended for CLI tools)]
+```bash [pipx]
 pipx install moles-tools
 ```
 
