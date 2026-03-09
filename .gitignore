@@ -39,6 +39,8 @@ dist/
 .pytest_cache/
 .coverage
 coverage.xml
+pytest-coverage.txt
+pytest.xml
 htmlcov/
 
 # Type checking

@@ -82,7 +82,8 @@ jobs:
         run: uv run mypy src/
 
       - name: Run tests
-        run: uv run pytest tests/ -v --cov=moles_tools --cov-report=xml --cov-report=term-missing
+        shell: bash
+        run: uv run pytest tests/ -v --junitxml=pytest.xml --cov=moles_tools --cov-report=xml --cov-report=term-missing:skip-covered | tee pytest-coverage.txt
 
       - name: Upload coverage report
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12'
@@ -95,7 +96,8 @@ jobs:
         if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.12' && github.event_name == 'pull_request'
         uses: MishaKav/pytest-coverage-comment@v1.6.0
         with:
-          pytest-xml-coverage-path: ./coverage.xml
+          pytest-coverage-path: ./pytest-coverage.txt
+          junitxml-path: ./pytest.xml
           title: "Coverage Report"
           badge-title: Coverage
           hide-badge: false
