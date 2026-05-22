@@ -12,7 +12,7 @@
       "userGid": "automatic"
     },
     "ghcr.io/devcontainers/features/python:1": {
-      "version": "3.12",
+      "version": "3.14",
       "toolsToInstall": "flake8,autopep8,black,yapf,mypy,pydocstyle,pycodestyle,bandit,pipenv,virtualenv,pytest,pylint,ruff,pre-commit"
     },
     "ghcr.io/the78mole/devcontainer-features/uv:1": {},
