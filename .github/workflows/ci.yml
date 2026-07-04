@@ -114,7 +114,7 @@ jobs:
 
       - name: Post coverage comment on PR
         if: matrix.os == 'ubuntu-24.04' && matrix.python-version == '3.13' && github.event_name == 'pull_request'
-        uses: MishaKav/pytest-coverage-comment@v1.8.0
+        uses: MishaKav/pytest-coverage-comment@v1.9.0
         with:
           pytest-coverage-path: ./pytest-coverage.txt
           junitxml-path: ./pytest.xml
