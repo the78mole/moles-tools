@@ -166,7 +166,25 @@ jobs:
     steps:
       - name: Install system dependencies (Debian/Ubuntu)
         if: startsWith(matrix.container, 'debian:')
-        run: apt-get update && apt-get install -y --no-install-recommends ca-certificates curl git
+        run: |
+          # Debian 11 (Bullseye) is EOL since 2026-08-31: bullseye-security
+          # still advertises an expired Release file (apt-get update exits 100)
+          # and its pool has already been purged (404 on download). Use
+          # archive.debian.org for the EOL image and accept the stale metadata.
+          # git is not installable from the archive (the image ships a newer
+          # perl-base than the archived perl), but actions/checkout falls back
+          # to the tarball download without it - same as the ubuntu:20.04 job.
+          if [ "${{ matrix.container }}" = "debian:11" ]; then
+            printf 'deb http://archive.debian.org/debian bullseye main\n' \
+              > /etc/apt/sources.list
+            printf 'deb http://archive.debian.org/debian bullseye-updates main\n' \
+              >> /etc/apt/sources.list
+            apt-get -o Acquire::Check-Valid-Until=false update
+            apt-get install -y --no-install-recommends ca-certificates curl
+          else
+            apt-get update
+            apt-get install -y --no-install-recommends ca-certificates curl git
+          fi
 
       - name: Install system dependencies (Alpine)
         if: startsWith(matrix.container, 'alpine:')
